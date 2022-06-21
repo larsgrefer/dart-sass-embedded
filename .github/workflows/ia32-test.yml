@@ -6,27 +6,40 @@ env:
   protoc_version: '3.x'
 
 jobs:
-  windows:
-    runs-on: windows-latest
+  deploy_github_linux_qemu:
+    name: "Deploy Github: Linux"
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        arch: ['ia32', 'x64']
+        include:
+          # https://github.com/dart-lang/sdk/pull/48665
+          # - arch: arm
+          #   platform: linux/arm/v7
+          - arch: arm64
+            platform: linux/arm64
+          - arch: ia32
+            platform: linux/386
 
     steps:
       - uses: actions/checkout@v2
       - uses: arduino/setup-protoc@v1
         with: { version: "${{ env.protoc_version }}", repo-token: "${{ github.token }}" }
       - uses: dart-lang/setup-dart@v1
-        with:
-          architecture: ${{ matrix.arch }}
       - run: dart pub get
       - run: dart run grinder protobuf
-      - run: dart run grinder pkg-standalone-windows-ia32
-      - run: dart run grinder pkg-standalone-windows-x64
-      - uses: actions/upload-artifact@v3
-        with:
-          name: windows-pkg-${{ matrix.arch }}
-          path: build/*.zip
+      - uses: docker/setup-qemu-action@v1
+      - name: Deploy
+        run: |
+          docker run --rm \
+            --env "GH_BEARER_TOKEN=$GH_BEARER_TOKEN" \
+            --platform ${{ matrix.platform }} \
+            --mount type=bind,source="$PWD",target="$PWD" \
+            --mount type=tmpfs,destination=/root/.pub-cache \
+            --mount type=tmpfs,destination=/tmp \
+            --workdir "$PWD" \
+            docker.io/library/dart:latest \
+            /bin/sh -c "cp -R . /tmp/workspace && cd /tmp/workspace && dart pub get && dart run grinder pkg-standalone-linux-${{ matrix.arch }} && ls -lah build"
+      - run: ls -lah build
 
   linux:
     runs-on: ubuntu-latest
