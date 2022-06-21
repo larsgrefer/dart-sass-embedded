@@ -7,8 +7,10 @@ env:
 
 jobs:
   windows:
-    name: "Deploy Github: Windows"
     runs-on: windows-latest
+    strategy:
+      matrix:
+        arch: ['ia32', 'x64']
 
     steps:
       - uses: actions/checkout@v2
@@ -16,11 +18,35 @@ jobs:
         with: { version: "${{ env.protoc_version }}", repo-token: "${{ github.token }}" }
       - uses: dart-lang/setup-dart@v1
         with:
-          architecture: ia32
+          architecture: ${{ matrix.arch }}
       - run: dart pub get
       - run: dart run grinder protobuf
       - run: dart run grinder pkg-standalone-windows-ia32
       - run: dart run grinder pkg-standalone-windows-x64
       - uses: actions/upload-artifact@v3
         with:
+          name: windows-pkg-${{ matrix.arch }}
           path: build/*.zip
+
+  linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: ['ia32', 'x64']
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: arduino/setup-protoc@v1
+        with: { version: "${{ env.protoc_version }}", repo-token: "${{ github.token }}" }
+      - uses: dart-lang/setup-dart@v1
+        with:
+          architecture: ${{ matrix.arch }}
+      - run: dart pub get
+      - run: dart run grinder protobuf
+      - run: dart run grinder pkg-standalone-linux-ia32
+      - run: dart run grinder pkg-standalone-linux-x64
+      - run: ls -lah build
+      - uses: actions/upload-artifact@v3
+        with:
+          name: linux-pkg-${{ matrix.arch }}
+          path: build/*.gz
